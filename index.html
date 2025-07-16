@@ -10,8 +10,8 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/icon.png">
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <!-- OneSignal SDK -->
     <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js" async=""></script>
 </head>
@@ -54,17 +54,22 @@
     </div>
 
     <script>
-        // Initialize Firebase (Replace with your Firebase config)
+        // Your web app's Firebase configuration
         const firebaseConfig = {
-            // Add your Firebase config here, e.g.:
-            // apiKey: "YOUR_API_KEY",
-            // authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            // projectId: "YOUR_PROJECT_ID",
-            // storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            // messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            // appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyCEN4kts6zEL5_dTT0u730VG-G6R6cMwA0",
+            authDomain: "appointment-reminder-a72b3.firebaseapp.com",
+            projectId: "appointment-reminder-a72b3",
+            storageBucket: "appointment-reminder-a72b3.appspot.com",
+            messagingSenderId: "148518574123",
+            appId: "1:148518574123:web:30167430534678cd12726e",
+            measurementId: "G-SN7X48H0QM"
         };
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
+        // Optional: Initialize analytics if you want
+        if (firebase.analytics) {
+            firebase.analytics();
+        }
         const db = firebase.firestore();
 
         // Initialize OneSignal
@@ -212,6 +217,19 @@
                     });
             });
         }
+    </script>
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "c9203be4-928e-4511-addf-88420e0847c7",
+          safari_web_id: "web.onesignal.auto.5f4f9ed9-fb2e-4d6a-935d-81aa46fccce0",
+          notifyButton: {
+            enable: true,
+          },
+        });
+      });
     </script>
 </body>
 </html>
