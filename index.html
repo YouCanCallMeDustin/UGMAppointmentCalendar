@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Appointment Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#f3f4f6">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/icon.png">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
+    <!-- OneSignal SDK -->
+    <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js" async=""></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold mb-6 text-center">Mission Appointment Calendar</h1>
+
+        <!-- Form to add new check-in -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Add New Check-In</h2>
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label for="clientName" class="block text-sm font-medium text-gray-700">Client Name</label>
+                    <input type="text" id="clientName" class="border p-2 rounded w-full">
+                </div>
+                <div>
+                    <label for="checkInDate" class="block text-sm font-medium text circles-gray-700">Check-In Date</label>
+                    <input type="date" id="checkInDate" class="border p-2 rounded w-full">
+                </div>
+                <div>
+                    <label for="followUpDays" class="block text-sm font-medium text-gray-700">Follow-Up Days (default: 14)</label>
+                    <input type="number" id="followUpDays" value="14" min="1" class="border p-2 rounded w-full">
+                </div>
+                <button onclick="addCheckIn()" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Add Check-In</button>
+            </div>
+        </div>
+
+        <!-- Calendar Display -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Appointments</h2>
+            <div id="appointmentList" class="space-y-2"></div>
+        </div>
+
+        <!-- Notification Popup -->
+        <div id="notification" class="fixed top-4 right-4 bg-yellow-100 p-4 rounded-lg shadow-md hidden">
+            <h3 class="font-semibold">Appointment Reminder</h3>
+            <p id="notificationMessage"></p>
+            <button onclick="closeNotification()" class="mt-2 bg-red-500 text-white p-1 rounded">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Firebase (Replace with your Firebase config)
+        const firebaseConfig = {
+            // Add your Firebase config here, e.g.:
+            // apiKey: "YOUR_API_KEY",
+            // authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            // projectId: "YOUR_PROJECT_ID",
+            // storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            // messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            // appId: "YOUR_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Initialize OneSignal
+        window.OneSignal = window.OneSignal || [];
+        OneSignal.push(function() {
+            OneSignal.init({
+                appId: "c9203be4-928e-4511-addf-88420e0847c7" // Replace with your OneSignal App ID
+            });
+        });
+
+        // Function to add a new check-in
+        async function addCheckIn() {
+            const clientName = document.getElementById('clientName').value;
+            const checkInDate = document.getElementById('checkInDate').value;
+            const followUpDays = parseInt(document.getElementById('followUpDays').value) || 14;
+
+            if (!clientName || !checkInDate) {
+                alert('Please enter both client name and check-in date.');
+                return;
+            }
+
+            if (followUpDays < 1) {
+                alert('Follow-up days must be at least 1.');
+                return;
+            }
+
+            const checkIn = new Date(checkInDate);
+            const followUpDate = new Date(checkIn);
+            followUpDate.setDate(checkIn.getDate() + followUpDays);
+
+            const appointment = {
+                clientName,
+                checkInDate,
+                followUpDays,
+                followUpDate: followUpDate.toISOString().split('T')[0],
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            try {
+                // Add to Firestore
+                await db.collection('appointments').add(appointment);
+                // Schedule push notification
+                const notificationDate = followUpDate.getTime() - Date.now();
+                if (notificationDate > 0) {
+                    OneSignal.push(function() {
+                        OneSignal.sendSelfNotification(
+                            `Follow-up appointment with ${clientName} today!`,
+                            { url: window.location.href },
+                            notificationDate / 1000 // Convert to seconds
+                        );
+                    });
+                }
+                document.getElementById('clientName').value = '';
+                document.getElementById('checkInDate').value = '';
+                document.getElementById('followUpDays').value = '14';
+            } catch (error) {
+                console.error('Error adding appointment:', error);
+                alert('Failed to add appointment. Please try again.');
+            }
+        }
+
+        // Function to display appointments
+        function displayAppointments(appointments) {
+            const appointmentList = document.getElementById('appointmentList');
+            appointmentList.innerHTML = '';
+
+            appointments.forEach((doc) => {
+                const appointment = doc.data();
+                const div = document.createElement('div');
+                div.className = 'border p-2 rounded flex justify-between items-center';
+                div.innerHTML = `
+                    <div>
+                        <p><strong>Client:</strong> ${appointment.clientName}</p>
+                        <p><strong>Check-In:</strong> ${appointment.checkInDate}</p>
+                        <p><strong>Follow-Up:</strong> ${appointment.followUpDate} (${appointment.followUpDays} days)</p>
+                    </div>
+                    <button onclick="deleteAppointment('${doc.id}')" class="bg-red-500 text-white p-1 rounded">Delete</button>
+                `;
+                appointmentList.appendChild(div);
+            });
+        }
+
+        // Real-time listener for Firestore
+        db.collection('appointments').orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+            const appointments = [];
+            snapshot.forEach(doc => appointments.push({ id: doc.id, data: doc.data() }));
+            displayAppointments(appointments);
+            checkNotifications();
+        });
+
+        // Function to delete an appointment
+        async function deleteAppointment(docId) {
+            try {
+                await db.collection('appointments').doc(docId).delete();
+            } catch (error) {
+                console.error('Error deleting appointment:', error);
+                alert('Failed to delete appointment. Please try again.');
+            }
+        }
+
+        // Function to check for in-app notifications
+        function checkNotifications() {
+            const today = new Date().toISOString().split('T')[0];
+            const notification = document.getElementById('notification');
+            const notificationMessage = document.getElementById('notificationMessage');
+            let messages = [];
+
+            db.collection('appointments').get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    const appointment = doc.data();
+                    if (appointment.followUpDate === today) {
+                        messages.push(`Follow-up appointment with ${appointment.clientName} today!`);
+                    }
+                });
+
+                if (messages.length > 0) {
+                    notificationMessage.innerHTML = messages.join('<br>');
+                    notification.classList.remove('hidden');
+                } else {
+                    notification.classList.add('hidden');
+                }
+            });
+        }
+
+        // Function to close notification
+        function closeNotification() {
+            document.getElementById('notification').classList.add('hidden');
+        }
+
+        // Initial load
+        checkNotifications();
+
+        // Check notifications every minute
+        setInterval(checkNotifications, 60000);
+
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
