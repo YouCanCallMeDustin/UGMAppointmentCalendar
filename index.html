@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mission Appointment Calendar</title>
+    <title>UGM Appointment Reminder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#f3f4f6">
@@ -54,6 +54,7 @@
     </div>
 
     <script>
+        console.log("index.html loaded");
         // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyCEN4kts6zEL5_dTT0u730VG-G6R6cMwA0",
@@ -111,17 +112,7 @@
             try {
                 // Add to Firestore
                 await db.collection('appointments').add(appointment);
-                // Schedule push notification
-                const notificationDate = followUpDate.getTime() - Date.now();
-                if (notificationDate > 0) {
-                    OneSignal.push(function() {
-                        OneSignal.sendSelfNotification(
-                            `Follow-up appointment with ${clientName} today!`,
-                            { url: window.location.href },
-                            notificationDate / 1000 // Convert to seconds
-                        );
-                    });
-                }
+                // OneSignal.sendSelfNotification removed
                 document.getElementById('clientName').value = '';
                 document.getElementById('checkInDate').value = '';
                 document.getElementById('followUpDays').value = '14';
@@ -133,11 +124,16 @@
 
         // Function to display appointments
         function displayAppointments(appointments) {
+            console.log("displayAppointments called with:", appointments);
             const appointmentList = document.getElementById('appointmentList');
             appointmentList.innerHTML = '';
 
             appointments.forEach((doc) => {
-                const appointment = doc.data();
+                const appointment = typeof doc.data === 'function' ? doc.data() : doc.data;
+                if (!appointment) {
+                    console.warn('Invalid appointment object:', doc);
+                    return;
+                }
                 const div = document.createElement('div');
                 div.className = 'border p-2 rounded flex justify-between items-center';
                 div.innerHTML = `
@@ -154,8 +150,16 @@
 
         // Real-time listener for Firestore
         db.collection('appointments').orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+            console.log("Firestore listener triggered");
             const appointments = [];
-            snapshot.forEach(doc => appointments.push({ id: doc.id, data: doc.data() }));
+            snapshot.forEach(doc => {
+                if (typeof doc.data === 'function') {
+                    appointments.push({ id: doc.id, data: doc.data() });
+                } else {
+                    appointments.push(doc);
+                }
+            });
+            console.log('appointments:', appointments);
             displayAppointments(appointments);
             checkNotifications();
         });
